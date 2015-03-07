@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+__author__ = 'tchajed'
+
+import random
+import sys
+
+
+def openfile(fname):
+    """
+    :param fname: - filename to open, or - for stdin
+    :return: fname opened for reading
+    :rtype: file
+    """
+    return sys.stdin if fname == "-" else open(fname, "r")
+
+
+def shuffle_command(args):
+    with openfile(args.file) as f:
+        lines = f.readlines()
+        random.shuffle(lines)
+        print(*lines, sep="")
+
+
+def sample_command(args):
+    prob = args.prob/args.context
+    context_remaining = 0
+    with openfile(args.file) as f:
+        for line in f:
+            if context_remaining == 0:
+                if random.random() < prob:
+                    context_remaining = args.context
+            if context_remaining > 0:
+                print(line, end="")
+                context_remaining -= 1
+
+
+def num_command(args):
+    min = args.min
+    max = args.max
+    if min is None and max is None:
+        min, max = 0, 1
+    if min is not None and max is None:
+        max = min
+        min = 1
+    if min > max:
+        print("cannot generate number between {} and {}".format(min, max),
+              file=sys.stderr)
+        sys.exit(1)
+    num = random.randint(min, max)
+    print(num)
+
+
+import argparse
+
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("--seed",
+                    default=0,
+                    help="random seed: set to 0 to use current time")
+subparsers = parser.add_subparsers()
+
+# shuffle
+sub = subparsers.add_parser("shuffle",
+                            help="shuffle lines of input")
+sub.set_defaults(func=shuffle_command)
+sub.add_argument("file",
+                 nargs="?",
+                 default="-",
+                 help="file to shuffle")
+
+# num
+sub = subparsers.add_parser("num",
+                            help="random integer")
+sub.set_defaults(func=num_command)
+sub.add_argument("min",
+                 nargs="?",
+                 type=int,
+                 default=None)
+sub.add_argument("max",
+                 nargs="?",
+                 type=int,
+                 default=None)
+
+# sample
+sub = subparsers.add_parser("sample",
+                            help="sample some of the input lines")
+sub.set_defaults(func=sample_command)
+sub.add_argument("-p", "--prob",
+                 type=float,
+                 default=0.5,
+                 help="probability of sampling an input line")
+# unsupported - will read the whole input so that a deterministic number of
+# lines will be sampled
+sub.add_argument("-f", "--fraction",
+                 type=float,
+                 default=None,
+                 help="fraction of input lines to sample")
+sub.add_argument("-c", "--context",
+                 type=int,
+                 default=1,
+                 help="ensure this many consecutive lines are sampled")
+sub.add_argument("file",
+                 nargs="?",
+                 default="-",
+                 help="file to sample from")
+
+args = parser.parse_args()
+random.seed(None if args.seed == 0 else args.seed)
+
+# executes appropriate function based on subcommand
+args.func(args)
